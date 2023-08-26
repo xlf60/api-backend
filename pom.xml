@@ -13,11 +13,18 @@
     <artifactId>api-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>api-backend</name>
-    <description>徐呆呆接口</description>
+    <description>徐呆呆开发API平台</description>
     <properties>
         <java.version>1.8</java.version>
     </properties>
     <dependencies>
+
+        <dependency>
+            <groupId>com.xudaidai</groupId>
+            <artifactId>api-client-sdk</artifactId>
+            <version>0.0.1</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

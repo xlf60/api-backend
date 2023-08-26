@@ -1,15 +1,16 @@
 package com.yupi.project.controller;
 
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.google.gson.Gson;
+import com.xudaidai.apiclientsdk.client.XuApiClient;
 import com.yupi.project.annotation.AuthCheck;
-import com.yupi.project.common.BaseResponse;
-import com.yupi.project.common.DeleteRequest;
-import com.yupi.project.common.ErrorCode;
-import com.yupi.project.common.ResultUtils;
+import com.yupi.project.common.*;
 import com.yupi.project.constant.CommonConstant;
 import com.yupi.project.exception.BusinessException;
 import com.yupi.project.model.dto.interfaceinfo.InterfaceInfoAddRequest;
+import com.yupi.project.model.dto.interfaceinfo.InterfaceInfoInvokeRequest;
 import com.yupi.project.model.dto.interfaceinfo.InterfaceInfoQueryRequest;
 import com.yupi.project.model.dto.interfaceinfo.InterfaceInfoUpdateRequest;
 import com.yupi.project.model.entity.InterfaceInfo;
@@ -25,8 +26,11 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
+import static com.yupi.project.model.enums.InterfaceStatusEnum.OFFLINE;
+import static com.yupi.project.model.enums.InterfaceStatusEnum.ONLINE;
+
 /**
- * 帖子接口
+ * 接口
  *
  * @author yupi
  */
@@ -40,6 +44,9 @@ public class InterfaceInfoController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private XuApiClient xuApiClient;
 
     // region 增删改查
 
@@ -105,7 +112,7 @@ public class InterfaceInfoController {
      */
     @PostMapping("/update")
     public BaseResponse<Boolean> updateInterfaceInfo(@RequestBody InterfaceInfoUpdateRequest interfaceInfoUpdateRequest,
-                                            HttpServletRequest request) {
+                                                     HttpServletRequest request) {
         if (interfaceInfoUpdateRequest == null || interfaceInfoUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -194,6 +201,99 @@ public class InterfaceInfoController {
         return ResultUtils.success(interfaceInfoPage);
     }
 
-    // endregion
+    /**
+     * 发布
+     *
+     * @param idRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/online")
+    @AuthCheck(mustRole = "admin")
+    public BaseResponse<Boolean> onlineInterfaceInfo(@RequestBody IdRequest idRequest, HttpServletRequest request) {
+
+        if (idRequest == null || idRequest.getId() == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
+        }
+        Long id = idRequest.getId();
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        // 判断接口是否存在
+        if (oldInterfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        com.xudaidai.apiclientsdk.model.User user = new com.xudaidai.apiclientsdk.model.User();
+        user.setUsername("xudaidai");
+        String username = xuApiClient.getUsernameByPost(user);
+        if (StrUtil.isBlank(username)) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "接口认证失败");
+        }
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(ONLINE.getValue());
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 下线
+     *
+     * @param idRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/offline")
+    @AuthCheck(mustRole = "admin")
+    public BaseResponse<Boolean> offlineInterfaceInfo(@RequestBody IdRequest idRequest,
+                                                      HttpServletRequest request) {
+        if (idRequest == null || idRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        long id = idRequest.getId();
+        // 判断是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if (oldInterfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        // 仅本人或管理员可修改
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(OFFLINE.getValue());
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 测试调用
+     *
+     * @param interfaceInfoInvokeRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/invoke")
+    public BaseResponse<Object> invokeInterfaceInfo(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest,
+                                                    HttpServletRequest request) {
+        if (interfaceInfoInvokeRequest == null || interfaceInfoInvokeRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        long id = interfaceInfoInvokeRequest.getId();
+        String userRequestParams = interfaceInfoInvokeRequest.getUserRequestParams();
+        // 判断是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if (oldInterfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        if (oldInterfaceInfo.getStatus() == OFFLINE.getValue()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口已关闭");
+        }
+        User loginUser = userService.getLoginUser(request);
+        String accessKey = loginUser.getAccessKey();
+        String secretKey = loginUser.getSecretKey();
+        XuApiClient tempClient = new XuApiClient(accessKey, secretKey);
+        Gson gson = new Gson();
+        com.xudaidai.apiclientsdk.model.User user = gson.fromJson(userRequestParams, com.xudaidai.apiclientsdk.model.User.class);
+//        String usernameByPost = tempClient.getUsernameByPost(user);
+        String usernameByPost = xuApiClient.getUsernameByPost(user);
+        return ResultUtils.success(usernameByPost);
+    }
 
 }
