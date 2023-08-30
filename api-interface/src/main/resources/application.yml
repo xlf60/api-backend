@@ -1,9 +1,8 @@
-xuapi:
-  client:
-    access-key: xudaidai
-    secret-key: abcdefgh
 server:
   port: 8123
   servlet:
     context-path: /api
-
+xuapi:
+  client:
+      access-key: xudaidai
+      secret-key: abcdefgh

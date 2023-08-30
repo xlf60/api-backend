@@ -1,2 +1,2 @@
-#Spring Boot Starter
+# spring boot starter
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.xudaidai.apiclientsdk.XuApiClientConfig
